@@ -101,6 +101,9 @@ export default function DataTable() {
   const [filtroDe, setFiltroDe] = useState('')
   const [filtroAte, setFiltroAte] = useState('')
 
+  // 🔥 NOVO: filtro de status acionado ao clicar nos cards Pendentes/Entregues
+  const [statusFiltro, setStatusFiltro] = useState<'todos' | 'pendentes' | 'entregues'>('todos')
+
   const [dialogPedido, setDialogPedido] = useState<Pedido | null>(null)
   const [modoManual, setModoManual] = useState(false)
   const [manualData, setManualData] = useState('')
@@ -177,7 +180,11 @@ export default function DataTable() {
 
   // ── busca ────────────────────────────────────────────────────────────
 
-  const filteredData = useMemo(() => {
+  // 🔥 ALTERADO: renomeado de filteredData para baseFiltered. Contém a busca
+  // + filtro de datas, sem o filtro de status (Pendentes/Entregues). Os
+  // cards de contagem usam este, para não "zerar" quando um card estiver
+  // selecionado.
+  const baseFiltered = useMemo(() => {
     const termo = searchTerm.toLowerCase()
     const deDate = parseInputDate(filtroDe)
     const ateDate = parseInputDate(filtroAte)
@@ -210,6 +217,14 @@ export default function DataTable() {
       })
   }, [pedidos, searchTerm, filtroDe, filtroAte])
 
+  // 🔥 NOVO: aplica o filtro de status (Pendentes/Entregues) por cima da
+  // busca + filtro de datas. É este que alimenta a tabela/lista de cards.
+  const filteredData = useMemo(() => {
+    if (statusFiltro === 'pendentes') return baseFiltered.filter((p) => !isEntregue(p))
+    if (statusFiltro === 'entregues') return baseFiltered.filter(isEntregue)
+    return baseFiltered
+  }, [baseFiltered, statusFiltro])
+
   const temFiltroData = Boolean(filtroDe || filtroAte)
   const pendentePorRow = useCallback(
     (row: number) => filaPendente.some((p) => p.row === row),
@@ -221,10 +236,11 @@ export default function DataTable() {
   const endIndex = startIndex + rowsPerPage
   const currentData = filteredData.slice(startIndex, endIndex)
 
-  // 🔥 ALTERADO: os cards agora contam com base em filteredData (respeitam a
-  // busca e o filtro de datas), não mais em todos os pedidos carregados.
-  const entregues = filteredData.filter(isEntregue).length
-  const pendentes = filteredData.length - entregues
+  // 🔥 ALTERADO: os cards contam com base em baseFiltered (respeitam a busca
+  // e o filtro de datas, mas NÃO o filtro de status), para que o card do
+  // status oposto ao selecionado não "zere" na tela.
+  const entregues = baseFiltered.filter(isEntregue).length
+  const pendentes = baseFiltered.length - entregues
 
   // ── confirmar entrega via GET (evita CORS do POST) ─────────────────
 
@@ -312,18 +328,40 @@ export default function DataTable() {
 
   return (
     <div className="space-y-4">
-      {/* Cards de resumo */}
+      {/* Cards de resumo — 🔥 ALTERADO: agora são clicáveis e filtram a lista */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFiltro('todos')
+            setCurrentPage(1)
+          }}
+          className={`text-left bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-sm transition-colors ${
+            statusFiltro === 'todos'
+              ? 'border-blue-500 ring-2 ring-blue-500/30'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
               <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
             <span className="text-xs text-slate-500 dark:text-slate-400">Total</span>
           </div>
-          <p className="text-xl font-bold text-slate-800 dark:text-white">{filteredData.length}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p className="text-xl font-bold text-slate-800 dark:text-white">{baseFiltered.length}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFiltro((s) => (s === 'pendentes' ? 'todos' : 'pendentes'))
+            setCurrentPage(1)
+          }}
+          className={`text-left bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-sm transition-colors ${
+            statusFiltro === 'pendentes'
+              ? 'border-amber-500 ring-2 ring-amber-500/30'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -331,8 +369,19 @@ export default function DataTable() {
             <span className="text-xs text-slate-500 dark:text-slate-400">Pendentes</span>
           </div>
           <p className="text-xl font-bold text-slate-800 dark:text-white">{pendentes}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFiltro((s) => (s === 'entregues' ? 'todos' : 'entregues'))
+            setCurrentPage(1)
+          }}
+          className={`text-left bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-sm transition-colors ${
+            statusFiltro === 'entregues'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -340,7 +389,7 @@ export default function DataTable() {
             <span className="text-xs text-slate-500 dark:text-slate-400">Entregues</span>
           </div>
           <p className="text-xl font-bold text-slate-800 dark:text-white">{entregues}</p>
-        </div>
+        </button>
       </div>
 
       {/* Barra de ações */}
@@ -480,9 +529,13 @@ export default function DataTable() {
         <div className="text-center py-16 text-slate-400 text-sm">
           {searchTerm
             ? 'Nenhum pedido encontrado.'
-            : temFiltroData
-              ? 'Nenhum pedido no intervalo de datas selecionado.'
-              : 'Nenhum pedido cadastrado.'}
+            : statusFiltro === 'pendentes'
+              ? 'Nenhum pedido pendente no momento.'
+              : statusFiltro === 'entregues'
+                ? 'Nenhum pedido entregue no momento.'
+                : temFiltroData
+                  ? 'Nenhum pedido no intervalo de datas selecionado.'
+                  : 'Nenhum pedido cadastrado.'}
         </div>
       )}
 
@@ -504,11 +557,14 @@ export default function DataTable() {
                         {iniciais(String(row.LOJA ?? ''))}
                       </div>
                       <div>
+                        {/* 🔥 ALTERADO: em vez do código da loja (HC/NLC), mostra o
+                            número do pedido de forma explícita. O avatar acima
+                            continua com as iniciais da loja. */}
                         <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                          {row.LOJA || '—'}
+                          Pedido nº {String(row.PEDIDO)}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                          {String(row.PEDIDO)}
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {row.CIDADE || '—'}
                         </p>
                       </div>
                     </div>
@@ -555,7 +611,7 @@ export default function DataTable() {
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
                   <th className="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Pedido</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Loja</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Cidade</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Vendedor</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Valor</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Ações</th>
@@ -570,17 +626,19 @@ export default function DataTable() {
                       key={row._row}
                       className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
                     >
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
-                        {String(row.PEDIDO)}
-                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
                             {iniciais(String(row.LOJA ?? ''))}
                           </div>
-                          <span className="text-slate-800 dark:text-slate-200">{row.LOJA || '—'}</span>
+                          {/* 🔥 ALTERADO: em vez do código da loja (HC/NLC), mostra o
+                              número do pedido de forma explícita */}
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            Pedido nº {String(row.PEDIDO)}
+                          </span>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{row.CIDADE || '—'}</td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{row.VENDEDOR || '—'}</td>
                       <td className="px-4 py-3 text-slate-800 dark:text-slate-200 font-medium">
                         {formatCurrency(row['VALOR DO PEDIDO'])}
@@ -676,6 +734,10 @@ export default function DataTable() {
               <div className="flex justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Loja</span>
                 <span className="text-slate-800 dark:text-slate-200">{dialogPedido.LOJA || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Cidade</span>
+                <span className="text-slate-800 dark:text-slate-200">{dialogPedido.CIDADE || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Valor</span>
