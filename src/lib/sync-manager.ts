@@ -41,8 +41,11 @@ export async function sincronizarFila(): Promise<SyncResult> {
           row: item.row,
           data: item.data,
           hora: item.hora,
+<<<<<<< HEAD
           responsavel: item.responsavel,
           veiculo: item.veiculo,
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
         })
         removerDaFila(item.id)
         sincronizados.push(item)

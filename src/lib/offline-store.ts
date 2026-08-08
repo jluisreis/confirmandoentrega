@@ -51,9 +51,12 @@ export interface ConfirmacaoPendente {
   row: number
   data?: string
   hora?: string
+<<<<<<< HEAD
   /** 🔥 NOVO: carregados junto pra não se perder quando a confirmação for reenviada */
   responsavel?: string
   veiculo?: string
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   // snapshot só para exibir na UI (pedido, loja) sem depender do array principal
   pedidoLabel: string
   lojaLabel: string

@@ -24,6 +24,7 @@
  */
 
 const SHEET_NAME_ENTREGAS = 'Vendas/Faturamento/Entregas'; // nome da aba na planilha
+<<<<<<< HEAD
 const SHEET_NAME_LOGIN    = 'LOGIN';                        // 🔥 NOVO: aba com USER/SENHA
 const SHARED_SECRET       = 'CONFIRM_ENTREGA';              // igual ao VITE_APPS_SCRIPT_SECRET
 const TIMEZONE_ENTREGAS   = 'America/Fortaleza';
@@ -65,6 +66,27 @@ const STATUS_LOGISTICA_VISIVEIS = [
   LOGISTICA_VAI_HOJE,
   LOGISTICA_VAI_AMANHA,
   LOGISTICA_AGENDADA,
+=======
+const SHARED_SECRET       = 'CONFIRM_ENTREGA';              // igual ao VITE_APPS_SCRIPT_SECRET
+const TIMEZONE_ENTREGAS   = 'America/Fortaleza';
+const LOGISTICA_ENTREGA   = 'ENTREGA';   // valor para pedidos pendentes
+const LOGISTICA_VAI_HOJE  = 'VAI HOJE';  // valor para pedidos que vão sair hoje (também pendentes)
+const LOGISTICA_ENTREGUE  = 'ENTREGUE';  // valor para pedidos já entregues
+const LOGISTICA_RETIRADA  = 'RETIRADA';  // 🔥 NOVO: tratado como equivalente a ENTREGUE
+const COLUNA_DATA_PEDIDO  = 'DATA';      // coluna com a data do pedido
+const DATA_CORTE_ENTREGAS = new Date(2026, 5, 1); // 01/06/2026 (mês é 0-indexado: 5 = junho)
+
+// Status de LOGISTICA que o painel deve exibir/considerar.
+// "VAI HOJE" e "RETIRADA" foram adicionados — antes só ENTREGA e ENTREGUE
+// apareciam. Isso também alimenta os cards de quantidade (Pendentes/
+// Entregues) no front, já que eles são calculados a partir de TUDO que essa
+// função devolve: "VAI HOJE" entra como pendente (não tem ENTREGUE DATA/
+// HORA); "ENTREGUE" e "RETIRADA" entram como entregues (o front trata os
+// dois como a mesma coisa).
+const STATUS_LOGISTICA_VISIVEIS = [
+  LOGISTICA_ENTREGA,
+  LOGISTICA_VAI_HOJE,
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   LOGISTICA_ENTREGUE,
   LOGISTICA_RETIRADA,
 ];
@@ -144,11 +166,14 @@ function doGet_Entregas(e) {
       return _confirmarEntrega(params);
     }
 
+<<<<<<< HEAD
     // 🔥 NOVO: autenticação de usuários (aba LOGIN)
     if (action === 'login') {
       return _login(params);
     }
 
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
     return _jsonEntregas({ ok: false, error: 'Ação desconhecida: ' + action });
 
   } catch (err) {
@@ -215,6 +240,7 @@ function _listarEntregas(params) {
   return _jsonEntregas({ ok: true, rows: rows });
 }
 
+<<<<<<< HEAD
 // ─── login ───────────────────────────────────────────────────────────────────
 // 🔥 NOVO: valida usuário/senha contra a aba LOGIN (colunas USER e SENHA) e
 // devolve o RESPONSAVEL correspondente, usado para preencher automaticamente
@@ -262,6 +288,8 @@ function _login(params) {
   });
 }
 
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 // ─── confirmar entrega ───────────────────────────────────────────────────────
 function _confirmarEntrega(params) {
   const row = Number(params.row);
@@ -287,6 +315,7 @@ function _confirmarEntrega(params) {
   sh.getRange(row, colHora).setValue(hora);
   sh.getRange(row, colLogistica).setValue('ENTREGUE');
 
+<<<<<<< HEAD
   // 🔥 NOVO: grava quem confirmou a entrega (RESPONSAVEL, vindo do login) e
   // qual veículo foi usado (VEÍCULO, escolhido no popup de confirmação).
   // Ambos são opcionais aqui pra não quebrar chamadas antigas sem esses params.
@@ -311,3 +340,7 @@ function _confirmarEntrega(params) {
     veiculo: veiculo,
   });
 }
+=======
+  return _jsonEntregas({ ok: true, row: row, data: data, hora: hora });
+}
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101

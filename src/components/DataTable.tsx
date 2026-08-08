@@ -15,7 +15,10 @@ import {
   WifiOff,
   UploadCloud,
   Users,
+<<<<<<< HEAD
   Truck,
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 } from 'lucide-react'
 import {
   fetchPedidos,
@@ -25,7 +28,10 @@ import {
 } from '../lib/pedidos-api'
 import { iniciarAutoSync, onSyncChange, sincronizarFila } from '../lib/sync-manager'
 import { listarPendentes, type ConfirmacaoPendente } from '../lib/offline-store'
+<<<<<<< HEAD
 import type { Sessao } from '../lib/auth-store'
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
@@ -92,6 +98,7 @@ function parseInputDate(str: string): Date | null {
   return isNaN(dt.getTime()) ? null : dt
 }
 
+<<<<<<< HEAD
 // 🔥 NOVO: lista fixa de veículos que o motorista pode escolher ao confirmar
 // uma entrega — grava na coluna VEÍCULO da planilha.
 const VEICULOS = [
@@ -113,6 +120,9 @@ interface DataTableProps {
 }
 
 export default function DataTable({ sessao }: DataTableProps) {
+=======
+export default function DataTable() {
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -133,19 +143,25 @@ export default function DataTable({ sessao }: DataTableProps) {
   const [vendedorMenuAberto, setVendedorMenuAberto] = useState(false)
   const vendedorMenuRef = useRef<HTMLDivElement>(null)
 
+<<<<<<< HEAD
   // 🔥 NOVO: filtro por status de logística (AGENDADA, ENTREGA, VAI HOJE, VAI AMANHÃ)
   const [logisticaFiltro, setLogisticaFiltro] = useState<string[]>([])
   const [logisticaMenuAberto, setLogisticaMenuAberto] = useState(false)
   const logisticaMenuRef = useRef<HTMLDivElement>(null)
 
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   const [dialogPedido, setDialogPedido] = useState<Pedido | null>(null)
   const [modoManual, setModoManual] = useState(false)
   const [manualData, setManualData] = useState('')
   const [manualHora, setManualHora] = useState('')
+<<<<<<< HEAD
   // 🔥 NOVO: veículo usado e responsável pela entrega, escolhidos no popup
   const [veiculoSelecionado, setVeiculoSelecionado] = useState('')
   const [responsavelSelecionado, setResponsavelSelecionado] = useState('')
   const [erroDialog, setErroDialog] = useState<string | null>(null)
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 
   const [online, setOnline] = useState(navigator.onLine)
   const [usandoCache, setUsandoCache] = useState(false)
@@ -230,6 +246,7 @@ export default function DataTable({ sessao }: DataTableProps) {
     return () => document.removeEventListener('mousedown', handleClickFora)
   }, [vendedorMenuAberto])
 
+<<<<<<< HEAD
   // 🔥 NOVO: fecha o menu de status de logística ao clicar fora dele
   useEffect(() => {
     if (!logisticaMenuAberto) return
@@ -242,6 +259,8 @@ export default function DataTable({ sessao }: DataTableProps) {
     return () => document.removeEventListener('mousedown', handleClickFora)
   }, [logisticaMenuAberto])
 
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   // 🔥 NOVO: lista de vendedores únicos, para popular o filtro
   const vendedoresDisponiveis = useMemo(() => {
     const nomes = new Set<string>()
@@ -291,11 +310,15 @@ export default function DataTable({ sessao }: DataTableProps) {
         if (vendedoresFiltro.length === 0) return true
         return vendedoresFiltro.includes(String(p.VENDEDOR ?? '').trim())
       })
+<<<<<<< HEAD
       .filter((p) => {
         if (logisticaFiltro.length === 0) return true
         return logisticaFiltro.includes(String(p.LOGISTICA ?? '').toUpperCase().trim())
       })
   }, [pedidos, searchTerm, filtroDe, filtroAte, vendedoresFiltro, logisticaFiltro])
+=======
+  }, [pedidos, searchTerm, filtroDe, filtroAte, vendedoresFiltro])
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 
   // 🔥 NOVO: aplica o filtro de status (Pendentes/Entregues) por cima da
   // busca + filtro de datas. É este que alimenta a tabela/lista de cards.
@@ -324,6 +347,7 @@ export default function DataTable({ sessao }: DataTableProps) {
 
   // ── confirmar entrega via GET (evita CORS do POST) ─────────────────
 
+<<<<<<< HEAD
   async function executarConfirmacao(
     pedido: Pedido,
     data?: string,
@@ -331,6 +355,9 @@ export default function DataTable({ sessao }: DataTableProps) {
     responsavel?: string,
     veiculo?: string
   ) {
+=======
+  async function executarConfirmacao(pedido: Pedido, data?: string, hora?: string) {
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
     setConfirmando(pedido._row)
     setDialogPedido(null)
     try {
@@ -338,8 +365,11 @@ export default function DataTable({ sessao }: DataTableProps) {
         row: pedido._row,
         data,
         hora,
+<<<<<<< HEAD
         responsavel,
         veiculo,
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
         pedidoLabel: String(pedido.PEDIDO ?? pedido._row),
         lojaLabel: String(pedido.LOJA ?? ''),
       })
@@ -354,8 +384,11 @@ export default function DataTable({ sessao }: DataTableProps) {
                   'ENTREGUE DATA': outcome.result.data,
                   'ENTREGUE HORA': outcome.result.hora,
                   LOGISTICA: 'ENTREGUE',
+<<<<<<< HEAD
                   ...(responsavel ? { RESPONSAVEL: responsavel } : {}),
                   ...(veiculo ? { 'VEÍCULO': veiculo } : {}),
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
                 }
               : p
           )
@@ -371,8 +404,11 @@ export default function DataTable({ sessao }: DataTableProps) {
                   'ENTREGUE DATA': data || nowDate(),
                   'ENTREGUE HORA': hora || nowTime(),
                   LOGISTICA: 'ENTREGUE',
+<<<<<<< HEAD
                   ...(responsavel ? { RESPONSAVEL: responsavel } : {}),
                   ...(veiculo ? { 'VEÍCULO': veiculo } : {}),
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
                 }
               : p
           )
@@ -391,14 +427,18 @@ export default function DataTable({ sessao }: DataTableProps) {
     setModoManual(false)
     setManualData(nowDate())
     setManualHora(nowTime())
+<<<<<<< HEAD
     setVeiculoSelecionado('')
     // 🔥 NOVO: responsável já vem preenchido com quem está logado — admin pode trocar
     setResponsavelSelecionado(sessao.responsavel)
     setErroDialog(null)
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   }
 
   function confirmarDialogo() {
     if (!dialogPedido) return
+<<<<<<< HEAD
     if (!veiculoSelecionado) {
       setErroDialog('Selecione o veículo usado na entrega.')
       return
@@ -412,6 +452,12 @@ export default function DataTable({ sessao }: DataTableProps) {
       executarConfirmacao(dialogPedido, manualData, manualHora, responsavelSelecionado, veiculoSelecionado)
     } else {
       executarConfirmacao(dialogPedido, undefined, undefined, responsavelSelecionado, veiculoSelecionado)
+=======
+    if (modoManual) {
+      executarConfirmacao(dialogPedido, manualData, manualHora)
+    } else {
+      executarConfirmacao(dialogPedido)
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
     }
   }
 
@@ -633,6 +679,7 @@ export default function DataTable({ sessao }: DataTableProps) {
             </div>
           )}
         </div>
+<<<<<<< HEAD
 
         {/* 🔥 NOVO: filtro por status de logística (multi-seleção) */}
         <div className="space-y-1 relative" ref={logisticaMenuRef}>
@@ -701,6 +748,8 @@ export default function DataTable({ sessao }: DataTableProps) {
             </div>
           )}
         </div>
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
       </div>
 
       {/* Offline / usando cache local */}
@@ -776,6 +825,7 @@ export default function DataTable({ sessao }: DataTableProps) {
             ? 'Nenhum pedido encontrado.'
             : vendedoresFiltro.length > 0
               ? 'Nenhum pedido para os vendedores selecionados.'
+<<<<<<< HEAD
               : logisticaFiltro.length > 0
                 ? 'Nenhum pedido para os status selecionados.'
                 : statusFiltro === 'pendentes'
@@ -785,6 +835,15 @@ export default function DataTable({ sessao }: DataTableProps) {
                     : temFiltroData
                       ? 'Nenhum pedido no intervalo de datas selecionado.'
                       : 'Nenhum pedido cadastrado.'}
+=======
+              : statusFiltro === 'pendentes'
+                ? 'Nenhum pedido pendente no momento.'
+                : statusFiltro === 'entregues'
+                  ? 'Nenhum pedido entregue no momento.'
+                  : temFiltroData
+                    ? 'Nenhum pedido no intervalo de datas selecionado.'
+                    : 'Nenhum pedido cadastrado.'}
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
         </div>
       )}
 
@@ -1057,6 +1116,7 @@ export default function DataTable({ sessao }: DataTableProps) {
               </p>
             )}
 
+<<<<<<< HEAD
             {/* 🔥 NOVO: veículo usado na entrega */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -1107,6 +1167,8 @@ export default function DataTable({ sessao }: DataTableProps) {
               </div>
             )}
 
+=======
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
             <div className="flex justify-end gap-2 pt-1">
               <button
                 onClick={() => setDialogPedido(null)}
@@ -1127,4 +1189,8 @@ export default function DataTable({ sessao }: DataTableProps) {
       )}
     </div>
   )
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
