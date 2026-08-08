@@ -45,7 +45,6 @@ export function isConfigured() {
   return Boolean(SCRIPT_URL && SCRIPT_SECRET);
 }
 
-<<<<<<< HEAD
 // 🔥 NOVO: autenticação -----------------------------------------------------
 
 export interface LoginResult {
@@ -73,8 +72,6 @@ export async function login(usuario: string, senha: string): Promise<LoginResult
   return json as LoginResult;
 }
 
-=======
->>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 /** Monta a URL do Apps Script com query params — evita o problema de CORS do POST */
 function buildUrl(params: Record<string, string | number>): string {
   if (!SCRIPT_URL) throw new Error("VITE_APPS_SCRIPT_URL não configurado");
@@ -142,13 +139,10 @@ export interface ConfirmarInput {
   row: number;
   data?: string; // dd/MM/yy — se omitido, servidor usa a data atual
   hora?: string; // HH:mm — se omitido, servidor usa a hora atual
-<<<<<<< HEAD
   /** 🔥 NOVO: quem confirmou a entrega (vem do login) — grava na coluna RESPONSAVEL */
   responsavel?: string;
   /** 🔥 NOVO: veículo usado na entrega — grava na coluna VEÍCULO */
   veiculo?: string;
-=======
->>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
   /** usados só para mostrar algo legível na fila de pendentes, se cair offline */
   pedidoLabel?: string;
   lojaLabel?: string;
@@ -159,11 +153,8 @@ export interface ConfirmarResult {
   row: number;
   data: string;
   hora: string;
-<<<<<<< HEAD
   responsavel?: string;
   veiculo?: string;
-=======
->>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 }
 
 /** Resultado real (confirmado no Sheets) OU enfileirado (será enviado depois) */
@@ -186,11 +177,8 @@ export async function confirmarEntregaRemota(
   };
   if (input.data) params.data = input.data;
   if (input.hora) params.hora = input.hora;
-<<<<<<< HEAD
   if (input.responsavel) params.responsavel = input.responsavel;
   if (input.veiculo) params.veiculo = input.veiculo;
-=======
->>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
 
   const res = await fetch(buildUrl(params));
   const json = await res.json();
@@ -211,11 +199,8 @@ export async function confirmarEntrega(
       row: input.row,
       data: input.data,
       hora: input.hora,
-<<<<<<< HEAD
       responsavel: input.responsavel,
       veiculo: input.veiculo,
-=======
->>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
       pedidoLabel: input.pedidoLabel ?? String(input.row),
       lojaLabel: input.lojaLabel ?? "",
     });
@@ -234,11 +219,8 @@ export async function confirmarEntrega(
         row: input.row,
         data: input.data,
         hora: input.hora,
-<<<<<<< HEAD
         responsavel: input.responsavel,
         veiculo: input.veiculo,
-=======
->>>>>>> 52a6073d71e3acf843ec724f9fd5cb1555860101
         pedidoLabel: input.pedidoLabel ?? String(input.row),
         lojaLabel: input.lojaLabel ?? "",
       });
