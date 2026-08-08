@@ -4,7 +4,7 @@ import { login, isConfigured, type LoginResult } from '../lib/pedidos-api'
 import { salvarSessao, type Sessao } from '../lib/auth-store'
 
 // Lista fixa de usuários da aba LOGIN — evita erro de digitação no campo usuário.
-const USUARIOS = ['ADMINISTRACAO', 'JULIO', 'VICTOR', 'FELIPE', 'PAULO FELIPE', 'DADA']
+const USUARIOS = ['ADMINISTRACAO', 'JULIO', 'VICTOR', 'FELIPE', 'PAULO FELIPE']
 
 interface LoginProps {
   onEntrar: (sessao: Sessao) => void
