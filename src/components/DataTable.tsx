@@ -24,7 +24,7 @@ import {
   type Pedido,
 } from '../lib/pedidos-api'
 import { iniciarAutoSync, onSyncChange, sincronizarFila } from '../lib/sync-manager'
-import { listarPendentes, type ConfirmacaoPendente } from '../lib/offline-store'
+import { listarPendentes, lerCachePedidos, type ConfirmacaoPendente } from '../lib/offline-store'
 import type { Sessao } from '../lib/auth-store'
 
 // ─── helpers ─────────────────────────────────────────────────────────────
@@ -158,9 +158,12 @@ export default function DataTable({ sessao }: DataTableProps) {
   }, [])
 
   // ── carregar pedidos (com fallback pro cache local se estiver offline) ─
-
-  const carregarPedidos = useCallback(async () => {
-    setLoading(true)
+  //
+  // ⚡ ALTERADO: carregarPedidos agora aceita um modo "silencioso", usado
+  // quando já existe algo na tela (vindo do cache) e não queremos que o
+  // spinner substitua os dados já visíveis enquanto busca a versão real.
+  const carregarPedidos = useCallback(async (opts?: { silencioso?: boolean }) => {
+    if (!opts?.silencioso) setLoading(true)
     setErro(null)
     try {
       const { rows, fromCache, cacheAtualizadoEm } = await fetchPedidos()
@@ -168,14 +171,32 @@ export default function DataTable({ sessao }: DataTableProps) {
       setUsandoCache(fromCache)
       setCacheAtualizadoEm(cacheAtualizadoEm ?? null)
     } catch (err) {
+      // Se já tínhamos dados na tela (ex.: veio do cache local), não some com
+      // eles por causa de um erro pontual de rede — só avisa no banner de erro.
       setErro((err as Error).message)
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // ⚡ ALTERADO: ao abrir a tela, mostra o cache local IMEDIATAMENTE (se
+  // existir) em vez de esperar a resposta do Apps Script — é isso que fazia
+  // o painel parecer lento ao abrir, mesmo já tendo dados de uma visita
+  // anterior. Com o cache na tela, a busca real acontece em segundo plano
+  // e só atualiza a lista quando chega, sem re-exibir o spinner.
   useEffect(() => {
-    carregarPedidos()
+    const cache = lerCachePedidos()
+    if (cache) {
+      setPedidos(cache.rows)
+      setUsandoCache(true)
+      setCacheAtualizadoEm(cache.atualizadoEm)
+      setLoading(false)
+      carregarPedidos({ silencioso: true })
+    } else {
+      // primeiro acesso neste dispositivo/navegador — ainda não há cache,
+      // não tem como fugir de esperar a primeira resposta da rede
+      carregarPedidos()
+    }
   }, [carregarPedidos])
 
   // ── status online/offline do navegador ──────────────────────────────
