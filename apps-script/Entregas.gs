@@ -21,12 +21,30 @@
  * O Apps Script não retorna os cabeçalhos CORS necessários para o preflight,
  * então o POST nunca chega ao doPost(). A solução é enviar tudo via GET
  * com query params — o Apps Script responde com CORS correto em doGet().
+ *
+ * ⚡ CACHE (NOVO): _listarEntregas agora guarda o resultado já processado no
+ * CacheService por CACHE_TTL_SEGUNDOS segundos. Chamadas repetidas dentro da
+ * janela de TTL respondem quase instantaneamente, sem tocar a planilha. O
+ * cache é invalidado automaticamente sempre que uma entrega é confirmada.
+ *
+ * ⚡ JANELA DE 2 MESES + ARQUIVAMENTO (NOVO): o sistema só considera pedidos
+ * dos últimos JANELA_MESES_SISTEMA meses (rolante). Pedidos mais antigos
+ * devem ser fisicamente movidos para a aba "Histórico" pela função
+ * arquivarPedidosAntigos() — isso é o que resolve lentidão em planilhas
+ * grandes, já que getDataRange().getValues() sempre lê a aba inteira,
+ * independente de quantas linhas passam pelo filtro depois. Configure um
+ * gatilho (Trigger) de horário para rodar arquivarPedidosAntigos() uma vez
+ * por dia, de madrugada (ver instruções detalhadas junto com este arquivo).
  */
 
 const SHEET_NAME_ENTREGAS = 'Vendas/Faturamento/Entregas'; // nome da aba na planilha
 const SHEET_NAME_LOGIN    = 'LOGIN';                        // 🔥 NOVO: aba com USER/SENHA
 const SHARED_SECRET       = 'CONFIRM_ENTREGA';              // igual ao VITE_APPS_SCRIPT_SECRET
 const TIMEZONE_ENTREGAS   = 'America/Fortaleza';
+
+// ⚡ NOVO: chave e TTL do cache de listagem (ver comentário no topo do arquivo)
+const CACHE_KEY_PEDIDOS   = 'pedidos_visiveis_v1';
+const CACHE_TTL_SEGUNDOS  = 25; // ajuste conforme a tolerância de "atraso" aceitável
 
 // 🔥 NOVO: mapeia cada USER da aba LOGIN para o nome usado na coluna
 // RESPONSAVEL da planilha de entregas. ADMINISTRACAO é um caso especial:
@@ -38,11 +56,12 @@ const RESPONSAVEL_POR_USUARIO = {
   'VICTOR':        'VICTOR',
   'FELIPE':        'FELIPE',
   'PAULO FELIPE':  'PAULO FELIPE',
+  'DADA':          'DADA',
 };
 
 // Lista de responsáveis que o login ADMINISTRACAO pode escolher manualmente
 // ao confirmar uma entrega.
-const RESPONSAVEIS_DISPONIVEIS = ['JULIO CEZAR', 'JULIO', 'VICTOR', 'FELIPE', 'PAULO FELIPE'];
+const RESPONSAVEIS_DISPONIVEIS = ['JULIO CEZAR', 'JULIO', 'VICTOR', 'FELIPE', 'PAULO FELIPE', 'DADA'];
 const LOGISTICA_ENTREGA    = 'ENTREGA';     // valor para pedidos pendentes
 const LOGISTICA_VAI_HOJE   = 'VAI HOJE';    // valor para pedidos que vão sair hoje (também pendentes)
 const LOGISTICA_VAI_AMANHA = 'VAI AMANHÃ';  // 🔥 NOVO: pedidos que vão sair amanhã (também pendentes)
@@ -50,7 +69,21 @@ const LOGISTICA_AGENDADA   = 'AGENDADA';    // 🔥 NOVO: pedidos com entrega ag
 const LOGISTICA_ENTREGUE   = 'ENTREGUE';    // valor para pedidos já entregues
 const LOGISTICA_RETIRADA   = 'RETIRADA';    // 🔥 NOVO: tratado como equivalente a ENTREGUE
 const COLUNA_DATA_PEDIDO   = 'DATA';        // coluna com a data do pedido
-const DATA_CORTE_ENTREGAS  = new Date(2026, 5, 1); // 01/06/2026 (mês é 0-indexado: 5 = junho)
+
+// ⚡ NOVO: o sistema só trabalha com pedidos dos últimos JANELA_MESES_SISTEMA
+// meses (janela ROLANTE — sempre "hoje menos 2 meses", não uma data fixa).
+// Pedidos mais antigos que isso são movidos para a aba SHEET_NAME_HISTORICO
+// por arquivarPedidosAntigos() (ver mais abaixo), o que mantém a aba
+// principal pequena — é isso que de fato acelera o painel, já que o tempo
+// gasto pelo Apps Script cresce com o TAMANHO da planilha lida, não só com
+// quantos pedidos aparecem depois de filtrados.
+const JANELA_MESES_SISTEMA = 2;
+const SHEET_NAME_HISTORICO = 'Histórico';
+
+function _dataCorteRolante() {
+  const hoje = new Date();
+  return new Date(hoje.getFullYear(), hoje.getMonth() - JANELA_MESES_SISTEMA, hoje.getDate());
+}
 
 // Status de LOGISTICA que o painel deve exibir/considerar.
 // "VAI HOJE" e "RETIRADA" foram adicionados — antes só ENTREGA e ENTREGUE
@@ -157,16 +190,43 @@ function doGet_Entregas(e) {
 }
 
 // ─── listar pedidos ──────────────────────────────────────────────────────────
+//
+// ⚡ ALTERADO: a leitura/filtragem pesada da planilha (tudo que NÃO depende do
+// parâmetro "nivel") foi extraída para _obterPedidosVisiveis(), que é cacheada.
+// O filtro de "nivel" continua sendo aplicado a cada chamada, mas em cima de
+// um array já pronto — isso é instantâneo, então uma única entrada de cache
+// serve TODOS os valores de "nivel" sem precisar de uma chave por filtro.
 function _listarEntregas(params) {
-  const sh      = _sheetEntregas();
-  const values  = sh.getDataRange().getValues();
-  const headers = values.shift().map(String);
-
   const nivelFiltro = params.nivel
     ? String(params.nivel).toUpperCase().trim()
     : null;
 
+  const rows = _obterPedidosVisiveis();
+
+  const resultado = nivelFiltro
+    ? rows.filter(o => String(o['NIVEL ENTREGA']).toUpperCase().trim() === nivelFiltro)
+    : rows;
+
+  return _jsonEntregas({ ok: true, rows: resultado });
+}
+
+// ⚡ NOVO: lê a planilha inteira, aplica os filtros de LOGISTICA/DATA (que são
+// os mesmos pra qualquer usuário) e guarda o resultado em cache por
+// CACHE_TTL_SEGUNDOS. Enquanto o cache estiver válido, chamadas de listar()
+// nem tocam na planilha — só desserializam o JSON do cache, o que é ordens
+// de magnitude mais rápido que um getDataRange().getValues().
+function _obterPedidosVisiveis() {
+  const cache  = CacheService.getScriptCache();
+  const cached = cache.get(CACHE_KEY_PEDIDOS);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const sh      = _sheetEntregas();
+  const values  = sh.getDataRange().getValues();
+  const headers = values.shift().map(String);
   const idxData = headers.indexOf(COLUNA_DATA_PEDIDO);
+  const cutoff  = _dataCorteRolante();
 
   const rows = values
     .map((r, i) => {
@@ -181,29 +241,18 @@ function _listarEntregas(params) {
     .filter(o => {
       if (!o['PEDIDO']) return false;
 
-      // 🔥 ALTERADO: Aceita pedidos com LOGISTICA = "ENTREGA", "VAI HOJE" ou
-      // "ENTREGUE". Isso alimenta tanto a listagem quanto os cards de
-      // quantidade (Pendentes/Entregues) calculados no front a partir desses
-      // mesmos dados.
       const logistica = String(o['LOGISTICA'] || '').toUpperCase().trim();
       if (STATUS_LOGISTICA_VISIVEIS.indexOf(logistica) === -1) {
         return false; // Ignora qualquer outro status
       }
 
-      // 🔥 ALTERADO: o pedido aparece no painel se ELE JÁ FOI ENTREGUE
-      // (ENTREGUE ou RETIRADA, não importa a data) OU se foi feito a partir
-      // de 01/06 (inclusive). Antes, mesmo pedidos já entregues sumiam do
-      // painel se a DATA do pedido fosse anterior a 01/06.
-      const dataPedido  = _paraDataEntregas(o._dataRaw);
-      const jaEntregue  = (logistica === LOGISTICA_ENTREGUE || logistica === LOGISTICA_RETIRADA);
-      const dataValida  = Boolean(dataPedido) && dataPedido >= DATA_CORTE_ENTREGAS;
-      if (!jaEntregue && !dataValida) return false;
-
-      // Filtro opcional por NÍVEL ENTREGA
-      if (nivelFiltro &&
-          String(o['NIVEL ENTREGA']).toUpperCase().trim() !== nivelFiltro) {
-        return false;
-      }
+      // ⚡ ALTERADO: janela rolante de JANELA_MESES_SISTEMA meses, aplicada a
+      // TODOS os pedidos (entregues ou não). Pedidos entregues há mais tempo
+      // que isso já devem ter sido movidos para SHEET_NAME_HISTORICO por
+      // arquivarPedidosAntigos() — esse filtro aqui é só uma rede de
+      // segurança pro intervalo entre uma execução do arquivamento e outra.
+      const dataPedido = _paraDataEntregas(o._dataRaw);
+      if (!dataPedido || dataPedido < cutoff) return false;
 
       return true;
     })
@@ -212,7 +261,99 @@ function _listarEntregas(params) {
       return o;
     });
 
-  return _jsonEntregas({ ok: true, rows: rows });
+  try {
+    cache.put(CACHE_KEY_PEDIDOS, JSON.stringify(rows), CACHE_TTL_SEGUNDOS);
+  } catch (err) {
+    // O CacheService aceita no máximo 100KB por chave. Se a lista de pedidos
+    // crescer além disso, o put() falha silenciosamente aqui — não é
+    // crítico, o painel só deixa de se beneficiar do cache e volta a ler a
+    // planilha a cada chamada.
+  }
+
+  return rows;
+}
+
+// ─── arquivamento de pedidos antigos ─────────────────────────────────────────
+//
+// ⚡ NOVO: move para a aba SHEET_NAME_HISTORICO todo pedido cuja DATA seja
+// anterior à janela rolante de JANELA_MESES_SISTEMA meses, e reescreve a aba
+// principal só com o que sobrou. Isso é o que de fato resolve a lentidão em
+// planilhas grandes: getDataRange().getValues() lê a aba inteira sempre, então
+// quanto menor a aba principal, mais rápido tudo fica (a listagem, o cache,
+// o login — tudo que hoje faz uma leitura completa).
+//
+// ⚠️  IMPORTANTE — leia antes de agendar:
+// Reescrever a aba principal desloca o número de TODAS as linhas abaixo das
+// que forem removidas. O front guarda o número da linha (_row) de cada
+// pedido na tela para saber qual linha atualizar ao confirmar uma entrega.
+// Se alguém estiver com o painel aberto (ou com dados em cache local) no
+// exato momento em que o arquivamento roda, uma confirmação feita logo em
+// seguida pode acabar gravando na linha ERRADA.
+// Por isso: agende esta função para rodar em um horário SEM uso do painel
+// (ex.: de madrugada), nunca durante o expediente. Veja as instruções de
+// como criar esse agendamento na mensagem que acompanha este arquivo.
+function arquivarPedidosAntigos() {
+  const sh      = _sheetEntregas();
+  const values  = sh.getDataRange().getValues();
+  const headers = values.shift();
+  const idxData = headers.indexOf(COLUNA_DATA_PEDIDO);
+  const cutoff  = _dataCorteRolante();
+
+  const manter   = [];
+  const arquivar = [];
+
+  values.forEach((r) => {
+    const dataPedido = idxData >= 0 ? _paraDataEntregas(r[idxData]) : null;
+    // linhas sem data reconhecível ficam na aba principal por segurança
+    // (evita arquivar por engano algo que não conseguimos interpretar)
+    if (dataPedido && dataPedido < cutoff) {
+      arquivar.push(r);
+    } else {
+      manter.push(r);
+    }
+  });
+
+  if (arquivar.length === 0) {
+    return; // nada antigo o suficiente pra mover ainda
+  }
+
+  // grava os pedidos antigos na aba de histórico, criando-a se necessário
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let histSheet = ss.getSheetByName(SHEET_NAME_HISTORICO);
+  if (!histSheet) {
+    histSheet = ss.insertSheet(SHEET_NAME_HISTORICO);
+    histSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  const proximaLinhaHistorico = histSheet.getLastRow() + 1;
+  histSheet
+    .getRange(proximaLinhaHistorico, 1, arquivar.length, headers.length)
+    .setValues(arquivar);
+
+  // reescreve a aba principal só com quem ficou (isso é o que encolhe a
+  // planilha de verdade — sem isso, o getDataRange() continuaria lendo tudo)
+  const totalLinhasAtual = sh.getLastRow() - 1; // exclui o cabeçalho
+  if (totalLinhasAtual > 0) {
+    sh.getRange(2, 1, totalLinhasAtual, headers.length).clearContent();
+  }
+  if (manter.length > 0) {
+    sh.getRange(2, 1, manter.length, headers.length).setValues(manter);
+  }
+
+  _invalidarCachePedidos();
+
+  Logger.log(
+    'Arquivamento concluído: %s pedido(s) movido(s) para "%s", %s mantido(s) na aba principal.',
+    arquivar.length, SHEET_NAME_HISTORICO, manter.length
+  );
+}
+
+// ⚡ NOVO: força a próxima chamada de listar() a reler a planilha, em vez de
+// servir uma versão desatualizada do cache. Chamado sempre que uma entrega é
+// confirmada (ver _confirmarEntrega), pra que o pedido já apareça como
+// ENTREGUE na próxima listagem, mesmo que ainda esteja dentro da janela de
+// CACHE_TTL_SEGUNDOS.
+function _invalidarCachePedidos() {
+  CacheService.getScriptCache().remove(CACHE_KEY_PEDIDOS);
 }
 
 // ─── login ───────────────────────────────────────────────────────────────────
@@ -301,6 +442,10 @@ function _confirmarEntrega(params) {
     const colVeiculo = _colIndexEntregas(headers, 'VEÍCULO');
     sh.getRange(row, colVeiculo).setValue(veiculo);
   }
+
+  // ⚡ NOVO: invalida o cache de listagem para que essa confirmação apareça
+  // imediatamente na próxima leitura, em vez de esperar o TTL expirar.
+  _invalidarCachePedidos();
 
   return _jsonEntregas({
     ok: true,
